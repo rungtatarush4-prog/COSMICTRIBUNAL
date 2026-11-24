@@ -56,7 +56,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .timectl button:last-child{border-right:0}
 .timectl button:hover{color:var(--text);background:rgba(212,175,55,.08)}
 .timectl button[aria-pressed="true"]{background:var(--gold);color:var(--obsidian);font-weight:600}
-.cmdwrap{flex:1 1 280px;min-width:0;position:relative}
+.cmdwrap{flex:1 1 180px;min-width:0;position:relative}
 .cmdwrap input[type=text]{width:100%;background:var(--glass3);border:1px solid var(--line);border-radius:2px;padding:8px 12px 8px 34px;font-size:13.5px}
 .cmdwrap input::placeholder{color:var(--faint)}
 .cmdwrap svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.7}
@@ -268,7 +268,8 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 body.calm *{animation:none!important;transition:none!important}
 
 /* ---------- Responsive ---------- */
-@media (max-width:1180px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.indgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.opsstats .hide-md{display:none}}
+@media (max-width:1400px){.opsstats{display:none}}
+@media (max-width:1180px){.datebox span{display:none}.timectl button{padding:6px 7px}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.indgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.opsstats .hide-md{display:none}}
 @media (max-width:960px){
   #app{grid-template-columns:minmax(0,1fr)}
   #rail{position:fixed;left:0;top:0;bottom:0;z-index:75;width:min(280px,86vw);transform:translateX(-102%);transition:transform .25s ease;padding-top:max(18px,env(safe-area-inset-top,0px))}

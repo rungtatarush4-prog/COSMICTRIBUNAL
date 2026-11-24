@@ -30,6 +30,7 @@ const ICONS = {
   sound:'<path d="M2 7h3l4-3v10l-4-3H2zM12 6c1.5 1.5 1.5 4.5 0 6M14 4c2.5 2.5 2.5 7.5 0 10"/>',
   mute:'<path d="M2 7h3l4-3v10l-4-3H2zM12 7l4 4M16 7l-4 4"/>',
   menu:'<path d="M2 4h14M2 9h14M2 14h14"/>',
+  reset:'<path d="M3 9a6 6 0 1 0 1.8-4.3M3 2.5v3h3"/>',
   search:'<circle cx="7.5" cy="7.5" r="5"/><path d="M11.5 11.5L16 16"/>'
 };
 const icon = (k, s = 18, sw = 1.4) => `<svg class="ico" width="${s}" height="${s}" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
