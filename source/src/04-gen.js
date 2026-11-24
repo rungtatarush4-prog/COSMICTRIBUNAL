@@ -149,7 +149,7 @@ const CRISIS_TPL = {
 };
 function makeCrisis(st, tpl, civId) {
   const T = CRISIS_TPL[tpl], c = civById(st, civId);
-  return {id:nid(st, 'EMG'), kind:'crisis', tpl, civ:civId, title:T.title(c), desc:T.desc(c), stage:1, nextEsc:st.day + T.every, every:T.every, status:'active', created:st.day, monitored:{}, log:[`${fmtDate(st.day)}: ${T.stages[0]}`]};
+  return {id:nid(st, 'EMG'), kind:'crisis', tpl, civ:civId, title:T.title(c), desc:T.desc(c), stage:1, nextEsc:st.day + Math.max(2, Math.round(T.every / ((st.settings && st.settings.crisisSpeed) || 1))), every:T.every, status:'active', created:st.day, monitored:{}, log:[`${fmtDate(st.day)}: ${T.stages[0]}`]};
 }
 
 /* ---------- Developments (non-crisis events with choices) ---------- */

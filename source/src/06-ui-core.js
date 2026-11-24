@@ -5,7 +5,7 @@ const SCREEN_LIST = [
   ['dashboard','Sovereign’s Dashboard','grid'], ['tribunal','Cosmic Tribunal','scales'], ['council','Royal Cosmic Council','crown'], ['map','Universe Map','orbit'],
   ['civs','Civilisations','planet'], ['petitions','Petitions Office','scroll'], ['diplomacy','Diplomatic Affairs','hands'], ['treasury','Cosmic Treasury','coin'],
   ['legislature','Legislative Assembly','quill'], ['research','Scientific Research','flask'], ['education','Cosmic Education','book'], ['earth','Earth Affairs','globe'],
-  ['rungta','Rungta Global','tower'], ['archives','Cosmic Archives','vault'], ['emergency','Emergency Operations','alert'], ['office','Sovereign’s Private Office','key'], ['settings','Settings & Saves','gear']
+  ['rungta','Rungta Global','tower'], ['archives','Cosmic Archives','vault'], ['emergency','Emergency Operations','alert'], ['office','Sovereign’s Private Office','key'], ['settings','Settings & Saves','gear'], ['studio','Scenario Studio','wand']
 ];
 const ICONS = {
   grid:'<rect x="2" y="2" width="6" height="6"/><rect x="10" y="2" width="6" height="6"/><rect x="2" y="10" width="6" height="6"/><rect x="10" y="10" width="6" height="6"/>',
@@ -198,6 +198,14 @@ function advanceDays(n) {
   render(); return stopped;
 }
 function showInterrupt(it, done, planned) {
+  if (it.type === 'scenario-end') { const S = ST.scenario; AUDIO.play(S.status === 'won' ? 'ceremony' : 'alert'); openModal(`<div class="eyebrow">${esc(S.def.name)}</div><h2>${S.status === 'won' ? 'Victory' : 'Defeat'}</h2><div class="briefing" style="margin-top:10px">${sigil('Prime Arbiter', 45, 56)}<div><blockquote>${esc(S.result)}</blockquote><cite>The Prime Arbiter · day ${ST.day}</cite></div></div><p class="muted" style="font-size:13px">You may keep governing this Cosmos, play the scenario again, or build a new one.</p><div class="foot"><button class="btn ghost" data-act="closeModal">Keep playing</button><button class="btn primary" data-act="go" data-screen="studio">Scenario Studio</button></div>`, {label:'Scenario result'}); return; }
+  if (it.type === 'story') {
+    const ev = it.id && ST.events.find(x => x.id === it.id); const b = it.beat && ST.scenario && ST.scenario.def.beats.find(x => x.id === it.beat);
+    const title = ev ? ev.title : b ? b.title : 'The story continues'; const text = ev ? ev.desc : b ? b.text : '';
+    AUDIO.play('chime');
+    openModal(`<div class="eyebrow">${esc(ST.scenario ? ST.scenario.def.name : 'Story')} · ${esc(fmtDate(ST.day))}</div><h2>${esc(title)}</h2><p style="font-family:var(--f-display);font-size:19px;font-style:italic;line-height:1.5">${esc(text)}</p><div class="foot">${ev ? `<button class="btn primary" data-act="openDev" data-id="${ev.id}">Decide now</button>` : `<button class="btn primary" data-act="closeModal">Continue</button>`}${b && b.kind === 'crisis' ? '<button class="btn" data-act="go" data-screen="emergency">Emergency Operations</button>' : b && b.kind === 'petition' ? '<button class="btn" data-act="go" data-screen="petitions">Petitions Office</button>' : b && b.kind === 'case' ? '<button class="btn" data-act="go" data-screen="tribunal">Open the Tribunal</button>' : ''}</div>`, {label:title});
+    return;
+  }
   const e = ST.events.find(x => x.id === it.id);
   const title = it.type === 'crisis' ? 'A new emergency' : it.type === 'catastrophe' ? 'Catastrophe' : 'Emergency escalation';
   openModal(`<div class="eyebrow">Time halted${planned > 1 ? ` after ${done} of ${planned} days` : ''}</div><h2>${title}</h2><div class="briefing" style="margin-top:10px">${sigil('Prime Arbiter', 45, 52)}<div><blockquote>${esc(ST.briefing ? ST.briefing.text : (e ? e.desc : ''))}</blockquote><cite>The Prime Arbiter</cite></div></div><div class="foot"><button class="btn ghost" data-act="closeModal">Dismiss</button><button class="btn primary" data-act="go" data-screen="emergency">Open Emergency Operations</button></div>`, {label:title});

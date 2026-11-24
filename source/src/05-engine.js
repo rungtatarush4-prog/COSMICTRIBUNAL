@@ -37,7 +37,7 @@ function newGame(mode = 'sandbox', seed) {
     briefing:null, counters:{}, achievements:{}, stats:{verdicts:0, projectsDone:0, treaties:0, positiveMonths:0, crisesResolved:0, lawsEnacted:0, petitionsDecided:0},
     canon:{sovereign:'Tarush Rungta', title:'Sovereign of the Cosmos', arrangement:'sovereign-arbiter', arbiterRole:'Principal Adviser to the Crown', earthNextCollective:1000},
     flags:{ancientStage:0, spiritsLast:-999, fourthDoor:false, lattice:false, earthCollectiveTried:false},
-    rise:null, journal:'', cmdLog:[], goal:null
+    rise:null, journal:'', cmdLog:[], goal:null, settings:deep(DEFAULT_SETTINGS), scenario:null
   };
   JUDGES.forEach(j => st.chars.push(Object.assign(deep(j), {type:'judge', memory:[], standing:0, position:j.id === 'arbiter' ? 'Prime Arbiter of the Cosmic Tribunal' : `Judge of ${j.juris}`})));
   st.chars.push({id:'tarush', type:'council', sovereign:true, name:'Tarush Rungta', role:'Sovereign of the Cosmos', ability:'Constitutional executive authority', tags:[], values:{}, personality:'—', dept:'The Crown', trust:100, memory:[], perf:100, tasks:0, busyUntil:0, established:true});
@@ -155,13 +155,16 @@ function projectedRevenue(st) {
   let contrib = 0; const levy = lawRevenueMod(st, 'contributions');
   st.civs.forEach(c => { if (c.discovered && (c.kind === 'member' || c.kind === 'capital') && c.contribution > 0 && c.rel >= 30) contrib += c.contribution * (0.55 + 0.45 * c.rel / 100) * (0.7 + 0.3 * st.ind.trust / 100) * (1 + levy); });
   const treaties = st.laws.filter(l => l.type === 'treaty' && l.status === 'in force').length;
-  return {
+  const rm = SET(st).revenueMult ?? 1;
+  const out = {
     contributions:contrib,
     trade:1200 * (st.ind.trust / 90) * (1 + st.treasury.tradeBonus + treaties * 0.03 + lawRevenueMod(st, 'trade')),
     licensing:Math.max(0, 600 * (st.ind.science / 75) * (1 + lawRevenueMod(st, 'licensing'))),
     infrastructure:600 * (st.ind.stability / 92),
     development:250
   };
+  for (const k in out) out[k] *= rm;
+  return out;
 }
 function lawRevenueMod(st, key) { let m = 0; st.laws.forEach(l => { if (l.status !== 'in force') return; (l.provisions || []).forEach(pk => { const P = PROVISIONS.find(p => p.key === pk); if (P && P.revenue && P.revenue[key]) m += P.revenue[key]; }); }); return m; }
 function recurringCosts(st) {
@@ -182,7 +185,7 @@ function createProject(st, spec, o = {}) {
   st.projects.push(p);
   return {ok:true, project:p, msg:`${p.name} begun.`};
 }
-function projectRate(st) { return (0.55 + 0.45 * st.ind.efficiency / 85) * (1 + 0.06 * st.research.logistics); }
+function projectRate(st) { return (0.55 + 0.45 * st.ind.efficiency / 85) * (1 + 0.06 * st.research.logistics) * (SET(st).projectSpeed ?? 1); }
 function completeProject(st, p) {
   p.status = 'complete'; p.completed = st.day; p.progress = p.duration;
   applyEff(st, p.eff, `Project ${p.name}`);
@@ -518,7 +521,7 @@ function crisisRespond(st, id, optKey, memberId) {
       brief(st, `${e.title} is over. ${m ? m.name + '’s' : 'The Crown’s'} response succeeded and ${civ ? civ.name : 'the region'} is safe.`);
       return {ok:true, success:true, msg:`Success: ${e.title} resolved.`};
     }
-    applyEff(st, eff, 'Crisis containment'); e.stage--; e.nextEsc = st.day + e.every;
+    applyEff(st, eff, 'Crisis containment'); e.stage--; e.nextEsc = st.day + escIn(st, e);
     e.log.push(`${fmtDate(st.day)}: Contained to stage ${e.stage} — ${opt.label}.`);
     return {ok:true, success:true, msg:`Success: the emergency is reduced to stage ${e.stage}.`};
   }
@@ -542,7 +545,7 @@ function escalate(st, e) {
   }
   const d = T.dmg[e.stage - 1];
   if (d) { applyEff(st, {ind:d.ind, civ:{[e.civ]:d.rel}}, 'Escalation'); if (civ && d.pop) civ.pop = Math.max(0.05, Math.round((civ.pop + d.pop) * 100) / 100); }
-  e.nextEsc = st.day + e.every;
+  e.nextEsc = st.day + escIn(st, e);
   e.log.push(`${fmtDate(st.day)}: Escalated to stage ${e.stage}: ${T.stages[e.stage - 1]}`);
   notify(st, `Emergency escalated: ${e.title}`, `Stage ${e.stage} of 4: ${T.stages[e.stage - 1]}`, 'alert', {screen:'emergency'});
   if (e.stage >= 3) { ENGINE.interrupts.push({type:'escalation', id:e.id}); brief(st, `${e.title} has reached stage ${e.stage}. ${T.stages[e.stage - 1]} I advise immediate action.`); }
@@ -571,6 +574,7 @@ function devResolve(st, id, optKey) {
     case 'earth-individual': st.flags.earthCollectiveTried = true; st.petitions.push(makePetition(st, PET_TEMPLATES[6](st))); { const t = PET_TEMPLATES[3](st); if (t.civ === 'earth') st.petitions.push(makePetition(st, t)); } extra = ' Earth’s requests have been registered as individual petitions.'; break;
     case 'fourth-door': { const r = createProject(st, {name:'The Door of Mercy', cat:'infrastructure', cost:1500, duration:120, eff:{ind:{legitimacy:4, approval:3}}, special:'fourthDoor', key:'fourthDoor'}); if (!r.ok) return r; extra = ' Construction has begun.'; break; }
   }
+  scenarioChoice(st, o);
   if (e.tpl === 'earthCollective') st.flags.earthCollectiveTried = true;
   e.status = 'resolved'; e.choice = o.label; e.resolvedDay = st.day;
   archive(st, 'decision', `Decision: ${e.title}`, `${o.label}.${extra}`, e.id);
@@ -1022,7 +1026,7 @@ function grantAchievement(st, key) {
 function checkAchievements(st) { ACHIEVEMENTS.forEach(a => { if (a.test(st)) grantAchievement(st, a.key); }); }
 
 /* ---------- Creative Mode editor ---------- */
-function creativeGuard(st) { if (st.meta.mode !== 'creative') return {ok:false, msg:'The World Editor is only available in Creative Mode campaigns.'}; st.meta.creative = true; return null; }
+function creativeGuard(st) { if (!st.meta.creative) return {ok:false, msg:'Unlock Live Controls for this campaign first.'}; return null; }
 function creativeCiv(st, f) {
   const g = creativeGuard(st); if (g) return g;
   const name = String(f.name || '').trim().slice(0, 60); if (!name) return {ok:false, msg:'Name the civilisation.'};
@@ -1108,6 +1112,7 @@ function stepDay(st) {
   // procedural generation
   spawn(st);
   if (st.day % DAYS_PER_MONTH === 0) monthTick(st);
+  scenarioTick(st);
   if (st.rise && !st.rise.crowned && st.day % 10 === 0) { const s = riseStatus(st); if (s.ready && !st.rise.notified) { st.rise.notified = true; notify(st, 'Recognition is within reach', 'All Twelve and every member civilisation now endorse you. Petition for recognition from the Private Office.', 'success', {screen:'office'}); } }
 }
 function runTimer(st, t) {
@@ -1126,23 +1131,24 @@ function runTimer(st, t) {
     case 'caseClose': { const c = caseById(st, t.ref); if (c && c.status === 'decided') { c.status = 'closed'; c.log.push(`${fmtDate(st.day)}: Implementation complete. Case closed.`); } break; }
     case 'visitDone': { const e = civById(st, 'earth'); e.rel = clamp(e.rel + 4, 0, 100); adjInd(st, 'approval', 2); st.earth.visits++; archive(st, 'history', 'Official visit to Earth concluded', 'The Sovereign visited Earth, including the COSMOS–EDU pilot at DAIS.', 'EARTH'); notify(st, 'Official visit to Earth concluded', 'Earth relation +4, approval +2.', 'success', {screen:'earth'}); break; }
     case 'memberCheck': { const c = civById(st, t.ref); if (c && c.kind === 'observer') { if (c.rel >= 50) { c.kind = 'member'; c.status = 'Member Civilisation'; c.contribution = c.contribution || 200; notify(st, `${c.name} joins the Cosmos`, 'The observation period ended well.', 'success', {screen:'civs'}); } else notify(st, `${c.name} remains an observer`, 'Relations fell below 50 during the observation period.', 'info', {screen:'civs'}); } break; }
+    case 'scnBeat': if (st.scenario && st.scenario.status === 'active') fireBeat(st, st.scenario.def.beats.find(b => b.id === t.ref)); break;
     case 'ancient2': st.flags.ancientStage = 2; st.events.push({id:nid(st, 'EVT'), kind:'development', tpl:'ancient2', title:'The fourth door', desc:'The signal is decoded. It describes the Tribunal chamber with four doors: Trial, Petition, Hidden Verdict, and a fourth, of Mercy, that was never built. The Spirits say the Cosmos will be steadier when justice has a door for clemency.', options:[{key:'build', label:'Commission the Door of Mercy (CC 1,500M, 120 days)', detail:'Legitimacy +4 and Approval +3 on completion.', eff:{}, act:'fourth-door'}, {key:'decline', label:'Leave the chamber as it is', detail:'No cost.', eff:{ind:{legitimacy:-0.5}}}], status:'active', created:st.day, deadline:st.day + 40, def:'decline'}); notify(st, 'The ancient message is decoded', 'A new decision awaits.', 'alert', {screen:'dashboard'}); break;
   }
 }
 function spawn(st) {
-  const tribunal = st.meta.mode === 'tribunal', crisisMode = st.meta.mode === 'crisis';
+  const tribunal = st.meta.mode === 'tribunal', crisisMode = st.meta.mode === 'crisis'; const R = SET(st), f = R.eventRate ?? 1;
   const pending = st.petitions.filter(p => p.status === 'pending').length;
-  if (pending < 8 && chance(st, tribunal ? 0.03 : 0.055)) { const p = makePetition(st, pick(st, PET_TEMPLATES)(st)); st.petitions.push(p); notify(st, `New petition: ${p.id}`, `${p.petitioner}: ${p.title} (${p.urgency})`, 'info', {screen:'petitions', id:p.id}); }
+  if (R.petitions && pending < 8 && chance(st, (tribunal ? 0.03 : 0.055) * f)) { const p = makePetition(st, pick(st, PET_TEMPLATES)(st)); st.petitions.push(p); notify(st, `New petition: ${p.id}`, `${p.petitioner}: ${p.title} (${p.urgency})`, 'info', {screen:'petitions', id:p.id}); }
   const openCases = st.cases.filter(c => c.status === 'open').length;
-  if (openCases < (tribunal ? 5 : 3) && chance(st, tribunal ? 0.06 : 0.018)) { const c = makeCase(st, pick(st, CASE_TEMPLATES)(st)); st.cases.push(c); notify(st, `Case registered: ${c.id}`, `${c.title} — ${c.subject}`, 'info', {screen:'tribunal', id:c.id}); }
+  if (R.cases && openCases < (tribunal ? 5 : 3) && chance(st, (tribunal ? 0.06 : 0.018) * f)) { const c = makeCase(st, pick(st, CASE_TEMPLATES)(st)); st.cases.push(c); notify(st, `Case registered: ${c.id}`, `${c.title} — ${c.subject}`, 'info', {screen:'tribunal', id:c.id}); }
   const activeCrises = st.events.filter(e => e.kind === 'crisis' && e.status === 'active');
-  if (activeCrises.length < (crisisMode ? 4 : 2) && st.day > 10 && chance(st, crisisMode ? 0.03 : 0.014)) {
+  if (R.crises && activeCrises.length < (crisisMode ? 4 : 2) && st.day > 10 && chance(st, (crisisMode ? 0.03 : 0.014) * f)) {
     const s = pick(st, CRISIS_SPAWN); const civ = pick(st, s.civs.filter(id => !activeCrises.some(e => e.civ === id && e.tpl === s.tpl)));
     if (civ) { const e = makeCrisis(st, s.tpl, civ); st.events.push(e); notify(st, `Emergency: ${e.title}`, e.desc, 'alert', {screen:'emergency'}); brief(st, `A new emergency: ${e.title}. ${e.desc} Escalation is expected within ${e.every} days.`); ENGINE.interrupts.push({type:'crisis', id:e.id}); }
   }
   const activeDev = st.events.filter(e => e.kind === 'development' && e.status === 'active').length;
-  if (activeDev < 4 && chance(st, 0.045)) {
-    const pool = DEV_TEMPLATES.filter(t => t.key !== 'membership' || st.civs.some(c => c.discovered && c.kind === 'observer'));
+  if (R.events && activeDev < 4 && chance(st, 0.045 * f)) {
+    const pool = DEV_TEMPLATES.filter(t => (t.key !== 'membership' || st.civs.some(c => c.discovered && c.kind === 'observer')) && (t.key !== 'corporate' || R.corporate));
     const tot = pool.reduce((a, t) => a + t.w, 0); let r = rnd(st) * tot; let tpl = pool[0];
     for (const t of pool) { r -= t.w; if (r <= 0) { tpl = t; break; } }
     const e = tpl.make(st);
@@ -1175,7 +1181,7 @@ function monthTick(st) {
   adjInd(st, 'education', (mods * 0.05 + Math.min(st.edu.scholarships, 2000) / 2000 + st.edu.institutions.length * 0.04 - 0.35) * f);
   if (st.edu.modules.ethics) adjInd(st, 'legitimacy', 0.03); if (st.edu.modules.environment) adjInd(st, 'environment', 0.08); if (st.edu.modules.exchange) adjInd(st, 'trust', 0.08);
   // natural drift and pressure
-  IND_KEYS.forEach(k => { if (k !== 'approval') adjInd(st, k, -(st.ind[k] - 60) * 0.012); });
+  IND_KEYS.forEach(k => { if (k !== 'approval') adjInd(st, k, -(st.ind[k] - 60) * 0.012 * (SET(st).drift ?? 1)); });
   st.events.forEach(e => { if (e.kind === 'crisis' && e.status === 'active') { adjInd(st, 'stability', -0.3 * e.stage); adjInd(st, 'approval', -0.15 * e.stage); } });
   const pendingOld = st.petitions.filter(p => p.status === 'pending' && st.day - p.submitted > 20).length; adjInd(st, 'approval', -0.15 * pendingOld);
   const others = IND_KEYS.filter(k => k !== 'approval').reduce((a, k) => a + st.ind[k], 0) / 7;
@@ -1207,6 +1213,6 @@ function validateSave(o) {
 function migrate(o) {
   const base = newGame(o.meta.mode || 'sandbox', o.meta.seed || 1);
   for (const k in base) if (!(k in o)) o[k] = base[k];
-  ['flags','stats','canon','council','edu','earth','rg','research'].forEach(k => { for (const j in base[k]) if (!(j in o[k])) o[k][j] = base[k][j]; });
+  ['flags','stats','canon','council','edu','earth','rg','research','settings'].forEach(k => { for (const j in base[k]) if (!(j in o[k])) o[k][j] = base[k][j]; });
   return o;
 }

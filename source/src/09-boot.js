@@ -3,7 +3,7 @@ const $ = (s, r = document) => r.querySelector(s);
 function go(screen) { if (!SCREENS[screen]) return; UI.screen = screen; closeModal(); $('#rail').classList.remove('open'); render(true); window.scrollTo(0, 0); AUDIO.apply(); try { history.replaceState(null, '', '#' + screen); } catch (e) {} }
 
 function buildShell() {
-  const items = SCREEN_LIST.slice(); if (ST && ST.meta.mode === 'creative') items.push(['editor', 'World Editor', 'wand']);
+  const items = SCREEN_LIST.slice();
   $('#rail').innerHTML = `<div class="brand">${sealSVG(42)}<div><b>Cosmic Tribunal</b><span>Sovereignty beyond worlds</span></div></div><nav class="nav" aria-label="Departments">${items.map(([k, l, ic], i) => `${i === 11 || i === 13 ? '<div class="nav-group">' + (i === 11 ? 'Earthly affairs' : 'Records and command') + '</div>' : i === 0 ? '<div class="nav-group">The Crown</div>' : i === 3 ? '<div class="nav-group">The Cosmos</div>' : ''}<button data-act="go" data-screen="${k}" id="nav-${k}">${icon(ic)}<span>${l}</span><span class="badge" id="nb-${k}" hidden></span></button>`).join('')}</nav>`;
   $('#opsbar').innerHTML = `<button class="iconbtn" id="menuBtn" data-act="menu" aria-label="Open navigation">${icon('menu')}</button>
   <div class="datebox"><b id="opsDate"></b><span id="opsDay"></span></div>
@@ -29,7 +29,7 @@ function renderRail() {
   const set = (k, n, red) => { const b = $('#nb-' + k); if (!b) return; b.hidden = !n; b.textContent = n; b.classList.toggle('red', !!red); };
   set('dashboard', activeDevs().length); set('petitions', pendingPetitions().length); set('tribunal', openCases().length);
   set('emergency', activeCrises().length, true); set('council', ST.council.recommendations.filter(r => r.status === 'pending').length); set('diplomacy', activeNegs().length);
-  SCREEN_LIST.concat([['editor']]).forEach(([k]) => { const b = $('#nav-' + k); if (b) b.setAttribute('aria-current', UI.screen === k ? 'page' : 'false'); });
+  SCREEN_LIST.forEach(([k]) => { const b = $('#nav-' + k); if (b) b.setAttribute('aria-current', UI.screen === k ? 'page' : 'false'); });
 }
 function render(force) {
   if (!ST) return;
@@ -386,7 +386,7 @@ function initMap() {
 /* ---------- Opening scene ---------- */
 function showIntro() {
   const el = $('#intro');
-  const txt = ST.rise && !ST.rise.crowned ? 'Candidate, the Chamber receives you. The Twelve are seated, but they have not yet recognised your claim. Earn their trust, and the trust of every member civilisation.' : ST.meta.mode === 'crisis' ? 'Sovereign, you arrive in a dark hour. Four emergencies are burning across the Cosmos, and the treasury is thin. The Twelve await your orders.' : ST.meta.mode === 'tribunal' ? 'Sovereign, the docket is full. The Twelve are seated and the parties are waiting. Justice delayed is justice denied.' : ST.meta.mode === 'creative' ? 'Sovereign, the Cosmos is yours to shape. Here nothing is fixed, and nothing you build will be counted against the record.' : 'Welcome, Sovereign. The member civilisations have spoken with one voice, and the Twelve have recognised your authority. The Ancient Spirits bear witness. Your first briefing is ready.';
+  const txt = ST.scenario && ST.day === 0 ? ST.scenario.def.briefing : ST.rise && !ST.rise.crowned ? 'Candidate, the Chamber receives you. The Twelve are seated, but they have not yet recognised your claim. Earn their trust, and the trust of every member civilisation.' : ST.meta.mode === 'crisis' ? 'Sovereign, you arrive in a dark hour. Four emergencies are burning across the Cosmos, and the treasury is thin. The Twelve await your orders.' : ST.meta.mode === 'tribunal' ? 'Sovereign, the docket is full. The Twelve are seated and the parties are waiting. Justice delayed is justice denied.' : ST.meta.mode === 'creative' ? 'Sovereign, the Cosmos is yours to shape. Here nothing is fixed, and nothing you build will be counted against the record.' : 'Welcome, Sovereign. The member civilisations have spoken with one voice, and the Twelve have recognised your authority. The Ancient Spirits bear witness. Your first briefing is ready.';
   el.innerHTML = `${chamberHTML('chamberIntro', false)}<div class="welcome"><h1>The Cosmic Tribunal</h1><div class="sub">Sovereignty beyond worlds</div><p>“${esc(txt)}”</p><div class="eyebrow" style="margin-top:-6px">The Prime Arbiter · ${esc(fmtDate(ST.day))}</div><div class="btnrow" style="justify-content:center;margin-top:18px"><button class="btn primary" data-act="introEnter" autofocus>Enter the Chamber</button><button class="btn" data-act="introSound" id="introSoundBtn">${PREFS.muted ? 'Enable sound' : 'Sound on'}</button><button class="btn ghost" data-act="introModes">Choose a campaign mode</button></div></div>`;
   el.classList.add('open'); drawChamber($('#chamberIntro canvas'));
 }
@@ -406,4 +406,3 @@ function boot(data) {
   addEventListener('pagehide', () => autosave(true));
   if (!SaveManager.ok()) toast('Browser storage is unavailable. Export your campaign from Settings to keep it.', 'bad');
 }
-if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(boot); else boot((window.claude && window.claude.hot && window.claude.hot.data) || {});

@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm');
-const code=['01-util','02-data','03-scenario','04-gen','05-engine'].map(f=>fs.readFileSync(__dirname+'/../src/'+f+'.js','utf8')).join('\n')+'\n;globalThis.API={newGame,stepDay,petAction,caseAdvance,caseAsk,caseVerdict,caseRequestEvidence,crisisRespond,devResolve,saveDraft,enactDraft,reviewDraft,appointMember,assignDept,civAction,negSetStance,fundResearch,spend,setBudget,validateSave,ENGINE,councilMembers,eduExpand,rgBoard,earthAction,adoptMeeting,meetingAgenda,memberReport,COUNCIL_CANDIDATES,transferToReserve,consultSpirits,petitionRecognition,riseStatus,creativeCiv,creativeEvent,decideRecommendation};';
+const code=['01-util','02-data','03-scenario','04-gen','05-engine','05b-scenario'].map(f=>fs.readFileSync(__dirname+'/../src/'+f+'.js','utf8')).join('\n')+'\n;globalThis.API={newGame,stepDay,petAction,caseAdvance,caseAsk,caseVerdict,caseRequestEvidence,crisisRespond,devResolve,saveDraft,enactDraft,reviewDraft,appointMember,assignDept,civAction,negSetStance,fundResearch,spend,setBudget,validateSave,ENGINE,councilMembers,eduExpand,rgBoard,earthAction,adoptMeeting,meetingAgenda,memberReport,COUNCIL_CANDIDATES,transferToReserve,consultSpirits,petitionRecognition,riseStatus,creativeCiv,creativeEvent,decideRecommendation,startScenario,EXAMPLE_SCENARIOS,devResolve,unlockEditor,editorSettings,editorSpawn,validateScenario};';
 vm.runInThisContext(code);
 const A=API; let fails=0;
 const ok=(c,m)=>{ if(!c){fails++;console.log('FAIL',m)} else console.log('ok  ',m)};
@@ -46,5 +46,9 @@ console.log('counts petitions',st.petitions.length,'cases',st.cases.length,'even
 let rs=A.newGame('rise',5); ok(!A.petitionRecognition(rs).ok,'rise: recognition blocked until endorsed');
 // creative
 let cs=A.newGame('creative',5); ok(A.creativeCiv(cs,{name:'Test Realm',kind:'member'}).ok && cs.meta.creative,'creative civ');
-let ss=A.newGame('sandbox',5); ok(!A.creativeCiv(ss,{name:'X'}).ok,'editor blocked outside creative');
+let ss=A.newGame('sandbox',5); ok(!A.creativeCiv(ss,{name:'X'}).ok,'editor locked until unlocked'); A.unlockEditor(ss); ok(A.creativeCiv(ss,{name:'X'}).ok,'editor works after unlock');
+ok(A.editorSettings(ss,{crises:false,petitions:false,events:false,cases:false}).ok,'rules set'); const np=ss.petitions.length, ne=ss.events.length; for(let i=0;i<300;i++) A.stepDay(ss); ok(ss.petitions.length===np && ss.events.filter(e=>e.kind==='crisis').length===ss.events.filter(e=>e.kind==='crisis'&&e.created===0).length,'disabled features do not spawn');
+for (const ex of A.EXAMPLE_SCENARIOS) { ok(A.validateScenario(ex)===null,'example valid: '+ex.name); const sc=A.startScenario(ex); let fired=0, guard=0;
+  while (sc.scenario.status==='active' && guard++<400) { A.stepDay(sc); const d=sc.events.find(e=>e.status==='active'&&e.tpl==='scenario'); if(d){ A.devResolve(sc,d.id,d.options[0].key); fired++; } }
+  ok(Object.keys(sc.scenario.fired).length>=2 && fired>=1,'scenario beats fired and choices made: '+ex.name+' fired='+Object.keys(sc.scenario.fired).join(',')+' -> '+sc.scenario.status+' day '+sc.day); }
 console.log(fails?fails+' FAILURES':'ALL PASS');
